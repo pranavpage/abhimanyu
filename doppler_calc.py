@@ -11,7 +11,8 @@ R_s = R_e + h
 G = sc.gravitational_constant
 M = 5.9722e24
 v_s = np.sqrt(G*M/(R_e+h))
-print(f"Altitude of satellite : {h/1e3:.1f} km \nVelocity = {v_s*3600/1e3:.1f} kmph")
+print(f"Altitude of satellite : {h/1e3:.1f} km \nVelocity = {v_s*3600/1e3:.1f} kmph \nOrbital period = {2*np.pi*R_s/(v_s)/3600:.1f} hours")
+print(f"Angular velocity : {360/(2*np.pi*R_s/(v_s)):.3f} deg/s")
 max_slant_angle = np.arcsin(R_e/(R_e+h))
 max_slant_range = R_s*np.cos(max_slant_angle)
 print(f"Max slant angle : {np.degrees(max_slant_angle):.2f} degrees")
