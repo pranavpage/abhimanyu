@@ -34,7 +34,7 @@ polar_start_s = [R_s, np.radians(90-lat_start_s), np.radians(long_s)]
 # print(f"Max slant range : {max_slant_range/1e3:.2f} km")
 # print(f"Footprint area : {2*np.pi*(R_e**2)*(1-np.cos(np.pi/2 - max_slant_angle))/1e6:.2f} sq km")
 std_bearing = np.radians(1)
-std_doppler = 5e-6
+std_doppler = 10/(f_c)
 ########### Search Parameters #############
 cart_e = cart(polar_e)
 num_grid_points_theta = 10
@@ -48,7 +48,7 @@ phi_min = polar_start_s[2] - footprint_width/np.cos(polar_start_s[1])
 phi_max = polar_start_s[2] + footprint_width/np.cos(polar_start_s[1])
 theta_arr = np.linspace(theta_min, theta_max, num_grid_points_theta)
 phi_arr = np.linspace(phi_min, phi_max, num_grid_points_phi)
-w_d = 1e8 # 1e8
+w_d = 5e9 # 1e8
 w_b = 1 # 1
 print(f"Doppler weight = {w_d:.1e}, Bearing weight = {w_b:.1e}")
 ###########################################
@@ -143,7 +143,8 @@ cost_argsort = np.argsort(cost_arr[:,0])
 for i in range(num_top):
     i_entry = cost_arr[cost_argsort[i]]
     print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
-    res = so.minimize(combined_cost, i_entry[1:], method='Nelder-Mead')
+    res = so.minimize(combined_cost, i_entry[1:], method='BFGS')
+    # res = so.minimize(combined_cost, [0.9, 0.6], method='Nelder-Mead')
     print(res.x, res.fun)
     if(i==0):
         with open('combined_data.csv','a') as fd:
