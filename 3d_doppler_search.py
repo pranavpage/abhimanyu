@@ -22,7 +22,7 @@ angular_velocity = 2*np.pi/(orbital_period)
 polar_e = [R_e, np.radians(90-lat_e), np.radians(long_e)]
 print(f"Location of source : {lat_e:.2f} lat, {long_e:.2f} long")
 print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
-num_sample_points = 10
+num_sample_points = 100
 num_grid_points = 20
 measurement_period = 60 # in seconds
 lat_start_s = lat_e -10
@@ -35,8 +35,23 @@ print(f"Max slant angle : {np.degrees(max_slant_angle):.2f} degrees")
 print(f"Center Frequency = {f_c/1e6:.2f} MHz")
 print(f"Max slant range : {max_slant_range/1e3:.2f} km")
 print(f"Footprint area : {2*np.pi*(R_e**2)*(1-np.cos(np.pi/2 - max_slant_angle))/1e6:.2f} sq km")
+########### Search Parameters #############
 cart_e = cart(polar_e)
-
+num_grid_points_theta = 20
+num_grid_points_phi = 2*num_grid_points_theta
+footprint_width = np.pi/2 - max_slant_angle
+print(f"Footprint width = {footprint_width:.4f}")
+theta_min = polar_start_s[1] - footprint_width
+theta_max = polar_start_s[1] + footprint_width
+print(f"Theta min = {theta_min:.4f}, Theta max = {theta_max:.4f}")
+phi_min = polar_start_s[2] - footprint_width/np.cos(polar_start_s[1])
+phi_max = polar_start_s[2] + footprint_width/np.cos(polar_start_s[1])
+theta_arr = np.linspace(theta_min, theta_max, num_grid_points_theta)
+phi_arr = np.linspace(phi_min, phi_max, num_grid_points_phi)
+w_d = 1e8
+w_b = 1
+print(f"Doppler weight = {w_d:.1e}, Bearing weight = {w_b:.1e}")
+###########################################
 def orbital_params(t):
     # returns [theta_s, phi_s, vx, vy, vz] of satellite
     theta_s_i = polar_start_s[1] - angular_velocity*t
@@ -67,12 +82,14 @@ def bearing_angles(o_params, cart_e = cart_e):
     theta_b = np.arccos(np.dot(cart_es, ZSAT)/np.linalg.norm(cart_es, 2))
     vec_in_plane = cart_es - np.dot(cart_es, ZSAT)*cart_es/np.linalg.norm(cart_es, 2)
     phi_b = np.arccos(np.dot(vec_in_plane, YSAT)/(np.linalg.norm(vec_in_plane, 2)))
-    print(f"({theta_b:.4f}, {phi_b:.4f})")
     return [theta_b, phi_b]
     
 measurement_times = np.linspace(0, measurement_period, num_sample_points)
 psi = np.array([doppler_shift(orbital_params(t)) for t in measurement_times])
 psi_b = np.array([bearing_angles(orbital_params(t)) for t in measurement_times])
+print(f"Bearing angles for source : {bearing_angles(orbital_params(0), cart_e)}")
+# cart_ghost = cart([R_e, 1.04722, 0.87270])
+# print(f"Bearing angles for ghost : {bearing_angles(orbital_params(0), cart_ghost)}")
 ###################################################################
 # Estimation
 
@@ -82,33 +99,39 @@ def doppler_cost(pos, psi = psi):
     cart_k = cart([R_e, theta_k, phi_k])
     psi_k = np.array([doppler_shift(orbital_params(t), cart_e=cart_k) for t in measurement_times])
     return (np.linalg.norm(psi_k-psi, 2))**2
-print(f"Doppler cost at original location = {doppler_cost([polar_e[1], polar_e[2]])}")
+
+def bearing_cost(pos, psi_b = psi_b):
+    # theta_k, phi_k is the candidate location in the grid search
+    [theta_k, phi_k] = pos
+    cart_k = cart([R_e, theta_k, phi_k])
+    psi_b_k = np.array([bearing_angles(orbital_params(t), cart_e=cart_k) for t in measurement_times])
+    psi_diff = psi_b - psi_b_k
+    # print(psi_diff.shape)
+    return (np.linalg.norm(psi_diff[:,0]))**2 + (np.linalg.norm(psi_diff[:,0]))**2
+def combined_cost(pos, w_d = w_d, w_b = w_b, psi=psi, psi_b = psi_b):
+    # combines doppler cost and bearing cost
+    d_cost = doppler_cost(pos, psi)
+    b_cost = bearing_cost(pos, psi_b)
+    return (w_d*d_cost + w_b*b_cost)
+# print(f"Ratio of Doppler and bearing cost at (0,0) = {doppler_cost([0,0])/bearing_cost([0,0])}")
 # grid search 
-# def grid_search(psi=psi):
-#     cost_arr = []
-#     for i in range(num_grid_points_theta):
-#         for j in range(num_grid_points_phi):
-#             theta_i = theta_arr[i]
-#             phi_j = phi_arr[j]
-#             cost_arr.append([doppler_cost([theta_i, phi_j], psi), theta_i, phi_j])
-#     return cost_arr
-# num_grid_points_theta = 20
-# num_grid_points_phi = 2*num_grid_points_theta
-# footprint_width = np.pi/2 - max_slant_angle
-# print(f"Footprint width = {footprint_width:.4f}")
-# theta_min = polar_start_s[1] - footprint_width
-# theta_max = polar_start_s[1] + footprint_width
-# print(f"Theta min = {theta_min:.4f}, Theta max = {theta_max:.4f}")
-# phi_min = polar_start_s[2] - footprint_width/np.cos(polar_start_s[1])
-# phi_max = polar_start_s[2] + footprint_width/np.cos(polar_start_s[1])
-# theta_arr = np.linspace(theta_min, theta_max, num_grid_points_theta)
-# phi_arr = np.linspace(phi_min, phi_max, num_grid_points_phi)
-# num_top = 5
-# cost_arr = np.array(grid_search(psi))
-# cost_argsort = np.argsort(cost_arr[:,0])
-# for i in range(num_top):
-#     i_entry = cost_arr[cost_argsort[i]]
-#     print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
-#     res = so.minimize(doppler_cost, i_entry[1:], method='Nelder-Mead')
-#     print(res.x, res.fun)
-# print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
+def grid_search(num_grid_points_theta, num_grid_points_phi, psi=psi):
+    cost_arr = []
+    for i in range(num_grid_points_theta):
+        for j in range(num_grid_points_phi):
+            theta_i = theta_arr[i]
+            phi_j = phi_arr[j]
+            cost_arr.append([combined_cost([theta_i, phi_j]), theta_i, phi_j])
+    return cost_arr
+
+print(f"Doppler cost at original location = {doppler_cost([polar_e[1], polar_e[2]])}")
+print(f"Bearing cost at original location = {bearing_cost([polar_e[1], polar_e[2]])}")
+num_top = 5
+cost_arr = np.array(grid_search(num_grid_points_theta, num_grid_points_phi, psi))
+cost_argsort = np.argsort(cost_arr[:,0])
+for i in range(num_top):
+    i_entry = cost_arr[cost_argsort[i]]
+    print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
+    res = so.minimize(combined_cost, i_entry[1:], method='Nelder-Mead')
+    print(res.x, res.fun)
+print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
