@@ -2,8 +2,7 @@ import numpy as np
 import scipy.constants as sc
 import matplotlib.pyplot as plt
 import scipy.optimize as so
-#########################################
-# Data generation
+########## Orbital Parameters ############
 def cart(s_pos):
     return np.array([s_pos[0]*np.sin(s_pos[1])*np.cos(s_pos[2]), s_pos[0]*np.sin(s_pos[1])*np.sin(s_pos[2]), s_pos[0]*np.cos(s_pos[1])])
 R_e = 6.3781e6
@@ -23,7 +22,7 @@ polar_e = [R_e, np.radians(90-lat_e), np.radians(long_e)]
 print(f"Location of source : {lat_e:.2f} lat, {long_e:.2f} long")
 print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
 num_sample_points = 100
-num_grid_points = 20
+num_grid_points = 10
 measurement_period = 60 # in seconds
 lat_start_s = lat_e -10
 long_s = long_e + 5
@@ -35,6 +34,8 @@ print(f"Max slant angle : {np.degrees(max_slant_angle):.2f} degrees")
 print(f"Center Frequency = {f_c/1e6:.2f} MHz")
 print(f"Max slant range : {max_slant_range/1e3:.2f} km")
 print(f"Footprint area : {2*np.pi*(R_e**2)*(1-np.cos(np.pi/2 - max_slant_angle))/1e6:.2f} sq km")
+std_bearing = np.radians(1)
+std_doppler = 5e-6
 ########### Search Parameters #############
 cart_e = cart(polar_e)
 num_grid_points_theta = 20
@@ -83,13 +84,18 @@ def bearing_angles(o_params, cart_e = cart_e):
     vec_in_plane = cart_es - np.dot(cart_es, ZSAT)*cart_es/np.linalg.norm(cart_es, 2)
     phi_b = np.arccos(np.dot(vec_in_plane, YSAT)/(np.linalg.norm(vec_in_plane, 2)))
     return [theta_b, phi_b]
-    
+
 measurement_times = np.linspace(0, measurement_period, num_sample_points)
 psi = np.array([doppler_shift(orbital_params(t)) for t in measurement_times])
+print(f"Shape of psi = {psi.shape}")
 psi_b = np.array([bearing_angles(orbital_params(t)) for t in measurement_times])
+doppler_noise = np.random.normal(loc=0, scale=std_doppler, size=psi.shape)
+bearing_noise = np.random.normal(loc=0, scale=std_bearing, size=psi_b.shape)
+psi+=doppler_noise
+psi_b+=bearing_noise
 print(f"Bearing angles for source : {bearing_angles(orbital_params(0), cart_e)}")
-# cart_ghost = cart([R_e, 1.04722, 0.87270])
-# print(f"Bearing angles for ghost : {bearing_angles(orbital_params(0), cart_ghost)}")
+cart_ghost = cart([R_e, 1.04722, 0.87270])
+print(f"Bearing angles for ghost : {bearing_angles(orbital_params(0), cart_ghost)}")
 ###################################################################
 # Estimation
 
@@ -115,6 +121,8 @@ def combined_cost(pos, w_d = w_d, w_b = w_b, psi=psi, psi_b = psi_b):
     return (w_d*d_cost + w_b*b_cost)
 # print(f"Ratio of Doppler and bearing cost at (0,0) = {doppler_cost([0,0])/bearing_cost([0,0])}")
 # grid search 
+print(f"Bearing cost for ghost : {bearing_cost([1.04722, 0.87270])}")
+print(f"Doppler cost for ghost : {doppler_cost([1.04722, 0.87270])}")
 def grid_search(num_grid_points_theta, num_grid_points_phi, psi=psi):
     cost_arr = []
     for i in range(num_grid_points_theta):
@@ -134,4 +142,7 @@ for i in range(num_top):
     print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
     res = so.minimize(combined_cost, i_entry[1:], method='Nelder-Mead')
     print(res.x, res.fun)
+    if(i==0):
+        with open('combined_data.csv','a') as fd:
+            fd.write(f"{res.x[0]},{res.x[1]}\n")
 print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
