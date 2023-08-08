@@ -1,0 +1,4 @@
+1. Make the noise level common for both signals  [DONE]
+2. Add a third radar with a different center frequency [DONE]
+3. Generate multi-satellite signals
+4. Geolocate
