@@ -2,6 +2,7 @@ import numpy as np
 import scipy.constants as sc
 import matplotlib.pyplot as plt
 import scipy.optimize as so
+import pandas as pd
 ########## Orbital Parameters ############
 def cart(s_pos):
     return np.array([s_pos[0]*np.sin(s_pos[1])*np.cos(s_pos[2]), s_pos[0]*np.sin(s_pos[1])*np.sin(s_pos[2]), s_pos[0]*np.cos(s_pos[1])])
@@ -21,14 +22,14 @@ angular_velocity = 2*np.pi/(orbital_period)
 polar_e = [R_e, np.radians(90-lat_e), np.radians(long_e)]
 # print(f"Location of source : {lat_e:.2f} lat, {long_e:.2f} long")
 print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")
-num_sample_points = 100
 measurement_period = 60 # in seconds
+num_sample_points = 100
 lat_start_s = lat_e -10
-long_s = long_e + 5
+long_s = long_e + 7.5
 polar_start_s = [R_s, np.radians(90-lat_start_s), np.radians(long_s)]
-# print(f"Altitude of satellite : {h/1e3:.1f} km \nVelocity = {v_s*3600/1e3:.1f} kmph")
-# print(f"Orbital period : {orbital_period/3600:.2f} hours")
-# print(f"Angular velocity : {angular_velocity*180/np.pi:.3f} deg/s")
+print(f"Altitude of satellite : {h/1e3:.1f} km \nVelocity = {v_s*3600/1e3:.1f} kmph")
+print(f"Orbital period : {orbital_period/3600:.2f} hours")
+print(f"Angular velocity : {angular_velocity*180/np.pi:.3f} deg/s")
 # print(f"Max slant angle : {np.degrees(max_slant_angle):.2f} degrees")
 # print(f"Center Frequency = {f_c/1e6:.2f} MHz")
 # print(f"Max slant range : {max_slant_range/1e3:.2f} km")
@@ -36,6 +37,7 @@ polar_start_s = [R_s, np.radians(90-lat_start_s), np.radians(long_s)]
 std_bearing = np.radians(1)
 std_doppler = 10/(f_c)
 ########### Search Parameters #############
+num_simulations = 50
 cart_e = cart(polar_e)
 num_grid_points_theta = 10
 num_grid_points_phi = 2*num_grid_points_theta
@@ -88,10 +90,6 @@ measurement_times = np.linspace(0, measurement_period, num_sample_points)
 psi = np.array([doppler_shift(orbital_params(t)) for t in measurement_times])
 # print(f"Shape of psi = {psi.shape}")
 psi_b = np.array([bearing_angles(orbital_params(t)) for t in measurement_times])
-doppler_noise = np.random.normal(loc=0, scale=std_doppler, size=psi.shape)
-bearing_noise = np.random.normal(loc=0, scale=std_bearing, size=psi_b.shape)
-psi+=doppler_noise
-psi_b+=bearing_noise
 # print(f"Bearing angles for source : {bearing_angles(orbital_params(0), cart_e)}")
 cart_ghost = cart([R_e, 1.04722, 0.87270])
 # print(f"Bearing angles for ghost : {bearing_angles(orbital_params(0), cart_ghost)}")
@@ -122,13 +120,13 @@ def combined_cost(pos, w_d = w_d, w_b = w_b, psi=psi, psi_b = psi_b):
 # grid search 
 # print(f"Bearing cost for ghost : {bearing_cost([1.04722, 0.87270])}")
 # print(f"Doppler cost for ghost : {doppler_cost([1.04722, 0.87270])}")
-def grid_search(num_grid_points_theta, num_grid_points_phi, psi=psi):
+def grid_search(num_grid_points_theta, num_grid_points_phi, psi, psi_b):
     cost_arr = []
     for i in range(num_grid_points_theta):
         for j in range(num_grid_points_phi):
             theta_i = theta_arr[i]
             phi_j = phi_arr[j]
-            cost_arr.append([combined_cost([theta_i, phi_j]), theta_i, phi_j])
+            cost_arr.append([combined_cost([theta_i, phi_j], psi=psi, psi_b=psi_b), theta_i, phi_j])
     return cost_arr
 
 # print(f"Doppler cost at original location = {doppler_cost([polar_e[1], polar_e[2]])}")
@@ -137,16 +135,32 @@ def grid_search(num_grid_points_theta, num_grid_points_phi, psi=psi):
 # print(res.x, res.fun)
 # with open('combined_data.csv','a') as fd:
 #     fd.write(f"{res.x[0]},{res.x[1]}\n")
-num_top = 3
-cost_arr = np.array(grid_search(num_grid_points_theta, num_grid_points_phi, psi))
-cost_argsort = np.argsort(cost_arr[:,0])
-for i in range(num_top):
-    i_entry = cost_arr[cost_argsort[i]]
-    print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
-    res = so.minimize(combined_cost, i_entry[1:], method='BFGS')
-    # res = so.minimize(combined_cost, [0.9, 0.6], method='Nelder-Mead')
-    print(res.x, res.fun)
-    if(i==0):
-        with open('combined_data.csv','a') as fd:
-            fd.write(f"{res.x[0]},{res.x[1]}\n")
+results = []
+psi = np.array([doppler_shift(orbital_params(t)) for t in measurement_times])
+psi_b = np.array([bearing_angles(orbital_params(t)) for t in measurement_times])
+for j in range(num_simulations):
+    
+    doppler_noise = np.random.normal(loc=0, scale=std_doppler, size=psi.shape)
+    bearing_noise = np.random.normal(loc=0, scale=std_bearing, size=psi_b.shape)
+    psi_noisy = psi+doppler_noise
+    psi_b_noisy = psi_b+bearing_noise
+    
+    num_top = 3
+    cost_arr = np.array(grid_search(num_grid_points_theta, num_grid_points_phi, psi_noisy, psi_b_noisy))
+    cost_argsort = np.argsort(cost_arr[:,0])
+    top_arr = []
+    for i in range(num_top):
+        i_entry = cost_arr[cost_argsort[i]]
+        print(f"{i}: Cost={i_entry[0]:.3e}, theta={i_entry[1]:.4f}, phi={i_entry[2]:.4f}")
+        res = so.minimize(combined_cost, i_entry[1:], method='Nelder-Mead', args=(w_d, w_b, psi_noisy, psi_b_noisy))
+        top_arr.append([res.x[0], res.x[1], res.fun])
+        # res = so.minimize(combined_cost, [0.9, 0.6], method='Nelder-Mead')
+        print(res.x, res.fun)
+    top_arr = np.array(top_arr)
+    ind_min = np.argmin(top_arr[:,2])
+    print(f"Estimate = {top_arr[ind_min, :2]}, {j+1}/{num_simulations}")
+    results.append(top_arr[ind_min, :2])
+results = np.array(results)
+est = pd.DataFrame(results, columns=['theta', 'phi'])
+est.to_csv("combined_data_long7_5.csv", index=False, header=False, mode='a')
 # print(f"Location of source (radians) : theta = {polar_e[1]} , phi = {polar_e[2]}")

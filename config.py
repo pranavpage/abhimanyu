@@ -1,0 +1,9 @@
+num_sats = 3
+method = "TDoA_FDoA"
+std_bearing_deg = 1
+std_tdoa = 100e-9
+std_fdoa = 10
+num_simulations = 100
+num_sample_points = 1
+weights = {"AoA" : 1, "TDoA" : 1e12, "FDoA" : 1e2}
+tag = f"{method}_ns{num_sats}_nsim{num_simulations}_f{std_fdoa}_nsam{num_sample_points}"
