@@ -17,14 +17,16 @@ def ellipse_dim(x,y):
     b_ellipse = 2*2*np.sqrt(lambda2)
     angle = np.degrees(np.arctan2(*eig_vec[:,0][::-1]))
     return a_ellipse, b_ellipse, angle
-true_pos = [1.047197, 0.698132]
+true_pos= [np.radians(90-lat_e), np.radians(long_e)]
 R_e = 6.3781e6
+CEP_frac = 0.745
+R95_frac = 2
 plt.scatter(np.degrees(est["phi"]), theta2lat(est["theta"]), alpha=0.5, label="Estimate")
 plt.scatter(np.degrees(true_pos[1]), theta2lat(true_pos[0]), alpha=1, c='red', label="True location")
 plt.scatter(np.degrees(np.mean(est["phi"])), theta2lat(np.mean(est["theta"])), c='green', marker='x', label="Mean estimate")
 plt.grid()
 stddev = np.std(est)
-spread = 0.01
+spread = 0.008
 plt.xlim(np.degrees(true_pos[1]-spread), np.degrees(true_pos[1]+spread))
 plt.ylim(theta2lat(true_pos[0]-spread), theta2lat(true_pos[0]+spread))
 # plt.xticks(np.linspace(true_pos[0]-0.005, true_pos[0]+0.005, 5))
@@ -40,19 +42,37 @@ covariance_matrix = np.cov(x, y)
 eig_val, eig_vec = np.linalg.eig(covariance_matrix)
 lambda1 = eig_val[0]
 lambda2 = eig_val[1]
-a_ellipse = 2*2*np.sqrt(lambda1)
-b_ellipse = 2*2*np.sqrt(lambda2)
+# R95 ellipse
+r95_a_ellipse = 2*R95_frac*np.sqrt(lambda1)
+r95_b_ellipse = 2*R95_frac*np.sqrt(lambda2)
 angle = np.degrees(np.arctan2(*eig_vec[:,0][::-1]))
 ellipse2 = Ellipse(xy=(np.mean(x),np.mean(y)),
-                   width=2*2*np.sqrt(lambda1),
-                   height=2*2*np.sqrt(lambda2),
+                   width=r95_a_ellipse,
+                   height=r95_b_ellipse,
                    angle=angle,
                    fill=False,
                    alpha=1,
-                   ec='black', lw=1, label="95$\%$ confidence region")
+                   ec='black', lw=1, label="R95 ellipse")
 ax = plt.gca()
 ax.add_patch(ellipse2)
-plt.title(f"Estimates of location using {method} method, {num_sats} sats\n95% confidence region : width = {R_e*np.radians(a_ellipse)/1e3:.2f} km, height = {R_e*np.radians(b_ellipse)/1e3:.2f} km, area = {np.pi*np.radians(a_ellipse)/2*np.radians(b_ellipse)/2*(R_e**2)/1e6:.2f} sq km", fontsize=10)
+
+# CEP ellipse
+cep_a_ellipse = 2*CEP_frac*np.sqrt(lambda1)
+cep_b_ellipse = 2*CEP_frac*np.sqrt(lambda2)
+angle = np.degrees(np.arctan2(*eig_vec[:,0][::-1]))
+ellipse3 = Ellipse(xy=(np.mean(x),np.mean(y)),
+                   width=cep_a_ellipse,
+                   height=cep_b_ellipse,
+                   angle=angle,
+                   fill=False,
+                   alpha=1,
+                   ec='red', lw=1.2, label="CEP (50%) ellipse")
+ax = plt.gca()
+ax.add_patch(ellipse3)
+
+
+plt.title(f"Estimates of location of Radar 3 using {method} method, {num_sats} sats, {num_sample_points} measurements\n CEP Ellipse (50% conf) : width = {R_e*np.radians(cep_a_ellipse)/1e3:.3f} km, height = {R_e*np.radians(cep_b_ellipse)/1e3:.3f} km, area = {np.pi*np.radians(cep_a_ellipse)/2*np.radians(cep_b_ellipse)/2*(R_e**2)/1e6:.3f} sq km", fontsize=10)
+# \n95% confidence region (R95) : width = {R_e*np.radians(r95_a_ellipse)/1e3:.2f} km, height = {R_e*np.radians(r95_b_ellipse)/1e3:.2f} km, area = {np.pi*np.radians(r95_a_ellipse)/2*np.radians(r95_b_ellipse)/2*(R_e**2)/1e6:.2f} sq km
 plt.legend()
 plt.savefig(f"./plots/{tag}.png")
 # plt.xlabel('x', fontsize=15)

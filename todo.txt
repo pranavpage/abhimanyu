@@ -1,4 +1,24 @@
 1. Make the noise level common for both signals  [DONE]
 2. Add a third radar with a different center frequency [DONE]
-3. Generate multi-satellite signals
-4. Geolocate
+3. Generate plots
+4. Generate signals for multiple satellites
+5. Geolocate 
+6. RF fingerprinting
+
+List of plots 
+PPE 
+
+1. Raw I/Q data [DONE]
+2. ToA [DONE]
+3. Rise time, fall time [DONE]
+4. Individual pulse, TD as well as FD [DONE]
+    - Bandwidth and center freq
+5. Signal with flagged pulses [DONE]
+6. Separated pulse trains 
+
+GEOLOCATE 
+1. Ellipse of geolocation 
+2. Three geolocation targets + ellipses 
+
+FINGERPRINTING 
+1. Clustering into classes 

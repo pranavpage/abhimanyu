@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import pandas as pd
+import pickle
 def generate_rf_complex_baseband_signal(prf, pulse_width, rise_time, fall_time, duty_cycle, num_samples, chirp_bandwidth, sampling_rate, chirp_start_freq):
     # Calculate pulse repetition interval (PRI) from PRF
     pri = 1 / prf
@@ -91,7 +92,7 @@ rise_time_1 = 1e-6  # Rise time in seconds (e.g., 1 microsecond)
 fall_time_1 = 1e-6  # Fall time in seconds (e.g., 1 microsecond)
 duty_cycle_1 = 0.02  # Duty cycle (e.g., 5%)
 pulse_width_1 = (1/prf_1) * duty_cycle_1  # Pulse width
-num_samples = int(5e6)  # Number of samples in the baseband signal
+num_samples = int(1e6)  # Number of samples in the baseband signal
 chirp_start_freq_1 = 1e6
 chirp_bandwidth_1 = 0.2e6  # Chirp bandwidth in Hz (e.g., 1 MHz)
 sampling_rate = 100e6  # Sampling rate in Hz (e.g., 10 MHz)
@@ -120,9 +121,12 @@ snr_db_3 = 15  # Desired SNR in dB
 
 print(f"Pulse widths = {pulse_width_1, pulse_width_2, pulse_width_3}")
 # Generate random start times for each pulse train
-start_time_1 = np.random.uniform(0, 1/prf_1)
-start_time_2 = np.random.uniform(0, 1/prf_2)
-start_time_3 = np.random.uniform(0, 1/prf_3)
+# start_time_1 = np.random.uniform(0, 1/prf_1)
+# start_time_2 = np.random.uniform(0, 1/prf_2)
+# start_time_3 = np.random.uniform(0, 1/prf_3)
+start_time_1 = (1/prf_1)*0.1
+start_time_2 = (1/prf_2)*0.4
+start_time_3 = (1/prf_3)*0.2
 
 # Generate the noisy RF complex baseband signals with chirp waveform and desired SNR, including random delays
 time_1, noisy_complex_baseband_signal_1 = generate_noisy_rf_complex_baseband_signal(prf_1, pulse_width_1, rise_time_1, fall_time_1, duty_cycle_1, num_samples, chirp_bandwidth_1, sampling_rate, snr_db_1, start_time_1, gaussian_noise_power, chirp_start_freq_1)
@@ -151,7 +155,7 @@ def smooth_power_envelope(signal, window_size):
 # ... (Previous code remains the same)
 
 # Calculate the smoothed power envelope for the combined complex baseband signal
-window_size = 39  # Adjust the window size for smoothing (larger value for more smoothing)
+window_size = 125  # Adjust the window size for smoothing (larger value for more smoothing)
 smoothed_power_envelope = smooth_power_envelope(combined_complex_baseband_signal, window_size)
 def detect_edges(data, thresh):
     # Determine the sign of the data compared to the threshold
@@ -204,11 +208,17 @@ fall_end_idx = low_crossings[:, 1]
 t_rise_start = low_crossings[:, 0]/sampling_rate
 t_fall_end = low_crossings[:, 1]/sampling_rate
 
-high_crossings = np.array([find_crossings_within_window(smoothed_power_envelope, rising_edges[i], falling_edges[i], 0.9) for i in range(len(rising_edges))])
+high_crossings = np.array([find_crossings_within_window(smoothed_power_envelope, rising_edges[i], falling_edges[i], 0.8) for i in range(len(rising_edges))])
 t_rise_end = high_crossings[:, 0]/sampling_rate
 t_fall_start = high_crossings[:, 1]/sampling_rate
 pulse_max_power = np.array([max(smoothed_power_envelope[start_idx[i]:end_idx[i]+1]) for i in range(len(start_idx))])
 pulse_raw = [combined_complex_baseband_signal[rise_start_idx[i]:fall_end_idx[i]+1] for i in range(len(rise_start_idx))]
+with open("pulses_raw", "wb") as fp:
+    pickle.dump(pulse_raw, fp)
+# with open("pulses_raw", "rb") as fp:
+#     pulse_pickled = pickle.load(fp)
+#     print(pulse_pickled[0])
+
 # change start end points of raw pulse 
 t_rise = t_rise_end - t_rise_start
 t_fall = t_fall_end - t_fall_start
@@ -275,29 +285,35 @@ for i in range(len(start_idx)):
 # centroid_frequencies = [calculate_centroid_frequency(calculate_frequency_spectrum(pulse_raw[i], sampling_rate)) for i in range(len(pulse_raw))]
 pdw_table = pd.DataFrame({"t_arrival":t_arrival, "t_rise":t_rise, "t_fall":t_fall, "pulse_width":pulse_width , "pulse_max_power":pulse_max_power, "pulse_bandwidth":pulse_bandwidth, "pulse_center_freq":centroid_frequencies})
 print(pdw_table)
-pdw_table.to_csv(f"pdw_table.csv")
-plt.figure(2)
-plt.scatter(pdw_table['pulse_width']*1e6, pdw_table['pulse_center_freq']/1e6)
-plt.xlabel("Pulse width (µs)")
-plt.ylabel("Pulse center freq (MHz) ")
-plt.grid()
-plt.show()
+pdw_table.to_csv(f"pdw_table.csv", index=False)
+# plt.figure(2)
+# plt.scatter(pdw_table['pulse_width']*1e6, pdw_table['pulse_center_freq']/1e6)
+# plt.xlabel("Pulse width (µs)")
+# plt.ylabel("Pulse center freq (MHz) ")
+# plt.grid()
+# plt.show()
 # Get intervals where smoothened power envelope is above threshold, find max power in those intervals, find time when smoothened power rises to fraction of max power and falls below fraction of max power
 # Plot the original combined complex baseband signal and the smoothed power envelope
-# plt.figure(1)
-# plt.plot(time_1 * 1e6, combined_complex_baseband_signal.real, '-b', label='I', alpha=0.8)
-# plt.plot(time_1 * 1e6, combined_complex_baseband_signal.imag, '-r', label='Q', alpha=0.8)
+plt.figure(1)
+plt.plot(time_1 * 1e6, combined_complex_baseband_signal.real, '-b', label='I', alpha=0.7)
+plt.plot(time_1 * 1e6, combined_complex_baseband_signal.imag, '-r', label='Q', alpha=0.7)
 # plt.plot(time_1 * 1e6, smoothed_power_envelope, '-k', label='Smoothed Power Envelope')
-# plt.xlabel('Time (µs)')
-# plt.ylabel('Amplitude / Power')
-# plt.title('RF Complex Baseband Signal and Smoothed Power Envelope')
-# plt.axhline(threshold, linestyle = "-.", alpha=0.5)
-# for arrival_time in t_start:
-#     plt.axvline(x=arrival_time * 1e6, color='g', linestyle='--', alpha=0.7)
-
+plt.xlabel('Time (µs)')
+# plt.xlim(t_start[1]*1e6 - 10, t_end[1]*1e6 + 10)
+plt.ylabel('Amplitude')
+plt.title('Pulse Parameters Extracted')
+plt.legend()
+plt.grid(True)
+# plt.show()
+# plt.axhline(threshold, linestyle = "-.", alpha=0.5, label="Threshold")
+for arrival_time in t_start:
+    plt.axvline(x=arrival_time * 1e6, color='g', linestyle='--', alpha=0.7)
+for arrival_time in t_end:
+    plt.axvline(x=arrival_time * 1e6, color='m', linestyle='--', alpha=0.7)
 # for arrival_time in t_end:
 #     plt.axvline(x=arrival_time * 1e6, color='m', linestyle='--', alpha=0.7)
 
 # plt.grid(True)
 # plt.legend()
-# plt.show()
+plt.show()
+# plt.savefig("./plots/ppe_pulse_td.png")

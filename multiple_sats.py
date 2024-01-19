@@ -6,8 +6,6 @@ import pandas as pd
 from config import *
 ######### Orbital Parameters ###########
 R_e = 6.3781e6
-lat_e = 30
-long_e = 40
 f_c = 200e6
 h = 500e3
 R_s = R_e + h
@@ -20,11 +18,12 @@ max_slant_range = R_s*np.cos(max_slant_angle)
 orbital_period = 2*np.pi*R_s/(v_s)
 angular_velocity = 2*np.pi/(orbital_period)
 polar_e = [R_e, np.radians(90-lat_e), np.radians(long_e)]
+print(f"True position of emitter = ({polar_e[1], polar_e[2]})")
 measurement_period = 60 # in seconds
 lat_start_s = lat_e - 10
 long_s = long_e + 10
 polar_start_s = [R_s, np.radians(90-lat_start_s), np.radians(long_s)]
-lat_s_arr = np.linspace(lat_start_s, lat_start_s+20, num_sats)
+lat_s_arr = np.linspace(lat_start_s+10, lat_start_s-10, num_sats)
 long_s_arr = np.linspace(long_s, long_s-20, num_sats)
 polar_sats_arr = [[R_s, np.radians(90-lat_s_arr[i]), np.radians(long_s_arr[i])] for i in range(num_sats)]
 # print([f"({lat_s_arr[i]:.2f}, {long_s_arr[i]:.2f})" for i in range(num_sats)])

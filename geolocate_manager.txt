@@ -1,0 +1,15 @@
+Radar 1 
+location
+lat_e = 19.0760
+long_e = 72.8777
+Radar 2 
+location
+lat_e = 19.1137
+long_e = 72.820157
+
+Radar 3 
+location
+lat_e = 19.152120
+long_e = 72.900804
+
+
